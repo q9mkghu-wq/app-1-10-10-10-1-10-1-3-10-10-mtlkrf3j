@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>받아쓰기 연습</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    background: linear-gradient(135deg, #e8f4f8 0%, #d4eaf5 100%);
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    text-align: center;
+    color: #1a6e8e;
+    font-size: 2rem;
+    margin-bottom: 20px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+  }
+  .subtitle {
+    text-align: center;
+    color: #555;
+    margin-bottom: 30px;
+    font-size: 1rem;
+  }
+
+  /* Level Select Screen */
+  #levelSelect {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .level-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+  .level-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 3px solid transparent;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .level-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+  .level-card.completed { border-color: #4caf50; background: linear-gradient(135deg, #e8f5e9, #f1f8e9); }
+  .level-card.active { border-color: #1a6e8e; background: linear-gradient(135deg, #e3f2fd, #bbdefb); }
+  .level-card.locked { opacity: 0.5; cursor: not-allowed; }
+  .level-num {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #1a6e8e;
+  }
+  .level-name {
+    font-size: 1rem;
+    color: #444;
+    margin-top: 5px;
+  }
+  .level-status {
+    font-size: 0.8rem;
+    margin-top: 8px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-block;
+  }
+  .status-done { background: #4caf50; color: white; }
+  .status-ready { background: #1a6e8e; color: white; }
+  .status-lock { background: #aaa; color: white; }
+  .badge-complete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 1.5rem;
+  }
+
+  /* Quiz Screen */
+  #quizScreen {
+    display: none;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  .quiz-header {
+    background: linear-gradient(90deg, #1a6e8e, #2196f3);
+    color: white;
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .quiz-header h2 { font-size: 1.3rem; }
+  .progress-text { font-size: 0.9rem; opacity: 0.9; }
+
+  .progress-bar-wrap {
+    background: #ddd;
+    border-radius: 10px;
+    height: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 10px;
+    background: linear-gradient(90deg, #4caf50, #8bc34a);
+    border-radius: 10px;
+    transition: width 0.4s;
+  }
+
+  /* Number buttons */
+  .num-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .num-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .num-btn.pending { background: white; color: #1a6e8e; border: 2px solid #1a6e8e; }
+  .num-btn.current { background: #1a6e8e; color: white; transform: scale(1.15); }
+  .num-btn.done-correct { background: #4caf50; color: white; }
+  .num-btn.done-wrong { background: #f44336; color: white; }
+
+  /* Question card */
+  .question-card {
+    background: white;
+    border-radius: 20px;
+    padding: 28px 24px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .question-label {
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  .question-text {
+    font-size: 1.6rem;
+    font-weight: bold;
+    color: #1a6e8e;
+    margin-bottom: 16px;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .blank-slot {
+    display: inline-block;
+    min-width: 70px;
+    border-bottom: 3px solid #1a6e8e;
+    color: #f44336;
+    font-size: 1.6rem;
+    text-align: center;
+  }
+  .speak-btn {
+    background: linear-gradient(135deg, #ff9800, #ffc107);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 28px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255,152,0,0.3);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 auto;
+  }
+  .speak-btn:hover { transform: scale(1.05); }
+  .speak-btn:active { transform: scale(0.98); }
+
+  /* Choices */
+  .choices-label {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 12px;
+  }
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .choice-btn {
+    background: white;
+    border: 2px solid #b0d4e8;
+    border-radius: 14px;
+    padding: 16px 20px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    text-align: center;
+  }
+  .choice-btn:hover { border-color: #1a6e8e; background: #e3f2fd; transform: translateX(4px); }
+  .choice-btn.correct { border-color: #4caf50; background: linear-gradient(135deg, #e8f5e9, #c8e6c9); color: #2e7d32; }
+  .choice-btn.wrong { border-color: #f44336; background: linear-gradient(135deg, #ffebee, #ffcdd2); color: #c62828; }
+  .choice-btn:disabled { cursor: not-allowed; }
+
+  /* Feedback */
+  .feedback {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .feedback.correct { background: #e8f5e9; color: #2e7d32; display: block; }
+  .feedback.wrong { background: #ffebee; color: #c62828; display: block; }
+
+  .next-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #1a6e8e, #2196f3);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(26,110,142,0.3);
+    transition: all 0.2s;
+    display: none;
+  }
+  .next-btn:hover { transform: translateY(-2px); }
+
+  .back-btn {
+    background: none;
+    border: 2px solid #1a6e8e;
+    color: #1a6e8e;
+    border-radius: 10px;
+    padding: 8px 18px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    transition: all 0.2s;
+  }
+  .back-btn:hover { background: #1a6e8e; color: white; }
+
+  /* Complete Screen */
+  #completeScreen {
+    display: none;
+    max-width: 480px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .complete-card {
+    background: white;
+    border-radius: 24px;
+    padding: 40px 30px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  }
+  .complete-emoji { font-size: 4rem; margin-bottom: 16px; }
+  .complete-title { font-size: 2rem; font-weight: bold; color: #1a6e8e; margin-bottom: 10px; }
+  .complete-sub { font-size: 1rem; color: #555; margin-bottom: 24px; }
+  .score-display {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #ff9800;
+    margin-bottom: 24px;
+  }
+  .complete-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: linear-gradient(135deg, #1a6e8e, #2196f3);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 28px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn-secondary {
+    background: white;
+    color: #1a6e8e;
+    border: 2px solid #1a6e8e;
+    border-radius: 12px;
+    padding: 14px 28px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { background: #e3f2fd; }
+
+  .stars { font-size: 2rem; margin-bottom: 12px; }
+
+  @media (max-width: 480px) {
+    h1 { font-size: 1.5rem; }
+    .level-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .question-text { font-size: 1.3rem; }
+    .choice-btn { font-size: 1rem; padding: 13px 15px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>📝 받아쓰기 연습</h1>
+<p class="subtitle">초등학교 1학년 받아쓰기 마스터!</p>
+
+<!-- Level Select -->
+<div id="levelSelect">
+  <div class="level-grid" id="levelGrid"></div>
+</div>
+
+<!-- Quiz Screen -->
+<div id="quizScreen">
+  <button class="back-btn" onclick="goBack()">← 급수 선택으로</button>
+  <div class="quiz-header">
+    <h2 id="quizTitle">1급</h2>
+    <span class="progress-text" id="progressText">1 / 10</span>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="progressBar" style="width:10%"></div>
+  </div>
+  <div class="num-buttons" id="numButtons"></div>
+  <div class="question-card">
+    <div class="question-label">🔊 버튼을 눌러 듣고 맞는 단어를 고르세요!</div>
+    <div class="question-text" id="questionText">?</div>
+    <button class="speak-btn" id="speakBtn" onclick="speakCurrent()">
+      🔊 다시 듣기
+    </button>
+  </div>
+  <div class="choices-label">👇 맞는 것을 골라보세요</div>
+  <div class="choices" id="choicesContainer"></div>
+  <div class="feedback" id="feedback"></div>
+  <button class="next-btn" id="nextBtn" onclick="nextQuestion()">다음 문제 →</button>
+</div>
+
+<!-- Complete Screen -->
+<div id="completeScreen">
+  <div class="complete-card">
+    <div class="complete-emoji" id="completeEmoji">🎉</div>
+    <div class="complete-title" id="completeTitle">완료!</div>
+    <div class="stars" id="completeStars">⭐⭐⭐</div>
+    <div class="score-display" id="scoreDisplay">10 / 10</div>
+    <div class="complete-sub" id="completeSub">잘 했어요!</div>
+    <div class="complete-btns">
+      <button class="btn-secondary" onclick="retryLevel()">🔄 다시 하기</button>
+      <button class="btn-primary" onclick="goBack()">📋 급수 선택</button>
+      <button class="btn-primary" id="nextLevelBtn" onclick="goNextLevel()">다음 급수 →</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {"apiKey":"AIzaSyAA9XxN-Pw0vbLT0f8-mI2bV0FgEx18iIU","authDomain":"appbuilder-4e83c.firebaseapp.com","projectId":"appbuilder-4e83c","storageBucket":"appbuilder-4e83c.firebasestorage.app","messagingSenderId":"1038242551917","appId":"1:1038242551917:web:4d59995638762401dd0764"};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ===== DATA =====
+const levels = [
+  {
+    id: 1,
+    name: "기본 통글자",
+    items: [
+      { text: "아버지", wrong: ["아바지", "아버치"] },
+      { text: "어머니", wrong: ["어미니", "어머리"] },
+      { text: "나라", wrong: ["나타", "나다"] },
+      { text: "우리", wrong: ["우미", "우리이"] },
+      { text: "바나나", wrong: ["바라나", "나나바"] },
+      { text: "고구마", wrong: ["고거마", "고구바"] },
+      { text: "도토리", wrong: ["도로리", "도토기"] },
+      { text: "무지개", wrong: ["무기개", "무지가"] },
+      { text: "버스", wrong: ["바스", "버서"] },
+      { text: "가위", wrong: ["가이", "나위"] }
+    ]
+  },
+  {
+    id: 2,
+    name: "낱말 익히기",
+    items: [
+      { text: "사과", wrong: ["사가", "싸과"] },
+      { text: "포도", wrong: ["보도", "포두"] },
+      { text: "수박", wrong: ["수밖", "수빡"] },
+      { text: "토마토", wrong: ["터마토", "토마태"] },
+      { text: "자전거", wrong: ["자점거", "차전거"] },
+      { text: "그네", wrong: ["그레", "기네"] },
+      { text: "미끄럼", wrong: ["미끄럼틀", "미그럼"] },
+      { text: "모래", wrong: ["모레", "모리"] },
+      { text: "꽃", wrong: ["꽂", "꽂이"] },
+      { text: "나비", wrong: ["나피", "나미"] }
+    ]
+  },
+  {
+    id: 3,
+    name: "짧은 문장 쓰기",
+    items: [
+      { text: "나는 학교에 가요.", wrong: ["나는 학교에 가오.", "나는 하교에 가요."] },
+      { text: "엄마가 요리해요.", wrong: ["엄마가 요리해오.", "엄마가 요리헤요."] },
+      { text: "아빠와 놀아요.", wrong: ["아빠와 노라요.", "아바와 놀아요."] },
+      { text: "밥을 먹어요.", wrong: ["밥을 먹어오.", "밥을 머거요."] },
+      { text: "책을 읽어요.", wrong: ["책을 일거요.", "책을 읽어오."] },
+      { text: "친구와 놀아요.", wrong: ["친구와 노라요.", "친구아 놀아요."] },
+      { text: "물을 마셔요.", wrong: ["물을 마셔오.", "물을 마서요."] },
+      { text: "학교가 좋아요.", wrong: ["학교가 조아요.", "학교가 좋오요."] },
+      { text: "꽃이 피어요.", wrong: ["꽃이 피여요.", "꼭이 피어요."] },
+      { text: "새가 날아요.", wrong: ["새가 나라요.", "쎄가 날아요."] }
+    ]
+  },
+  {
+    id: 4,
+    name: "받침 있는 말",
+    items: [
+      { text: "강아지", wrong: ["강아치", "감아지"] },
+      { text: "닭", wrong: ["닥", "닿"] },
+      { text: "솥", wrong: ["솟", "속"] },
+      { text: "넋", wrong: ["넥", "넫"] },
+      { text: "앞", wrong: ["아프", "압"] },
+      { text: "밭", wrong: ["밭이", "바트"] },
+      { text: "꽃밭", wrong: ["꽃받", "꼿밭"] },
+      { text: "읽다", wrong: ["익다", "잃다"] },
+      { text: "닫다", wrong: ["다따", "달다"] },
+      { text: "좋다", wrong: ["조타", "좃다"] }
+    ]
+  },
+  {
+    id: 5,
+    name: "흉내 내는 말",
+    items: [
+      { text: "엉금엉금", wrong: ["엉굼엉굼", "영금영금"] },
+      { text: "깡충깡충", wrong: ["캉충캉충", "깡총깡총"] },
+      { text: "살금살금", wrong: ["살굼살굼", "실금실금"] },
+      { text: "반짝반짝", wrong: ["반작반작", "반찍반찍"] },
+      { text: "뚝딱뚝딱", wrong: ["둑딱둑딱", "뚝탁뚝탁"] },
+      { text: "쿵쾅쿵쾅", wrong: ["쿵꽝쿵꽝", "콩쾅콩쾅"] },
+      { text: "아장아장", wrong: ["아잔아잔", "아착아착"] },
+      { text: "폴짝폴짝", wrong: ["폴작폴작", "볼짝볼짝"] },
+      { text: "졸졸", wrong: ["졸볼", "쫄쫄"] },
+      { text: "데굴데굴", wrong: ["데구데구", "대굴대굴"] }
+    ]
+  },
+  {
+    id: 6,
+    name: "문장 완성하기",
+    items: [
+      { text: "오늘은 날씨가 맑아요.", wrong: ["오늘은 날씨가 말가요.", "오늘은 날쌰가 맑아요."] },
+      { text: "바람이 시원해요.", wrong: ["바람이 시원해오.", "바랑이 시원해요."] },
+      { text: "비가 내려요.", wrong: ["비가 내려오.", "비가 내여요."] },
+      { text: "눈이 와요.", wrong: ["눈이 와오.", "눈이 봐요."] },
+      { text: "구름이 많아요.", wrong: ["구름이 만아요.", "구름이 많오요."] },
+      { text: "해가 뜨거워요.", wrong: ["해가 뜨거요.", "해가 뜨거워오."] },
+      { text: "달이 밝아요.", wrong: ["달이 발가요.", "달이 밝오요."] },
+      { text: "별이 빛나요.", wrong: ["별이 빛나오.", "벼리 빛나요."] },
+      { text: "무지개가 떴어요.", wrong: ["무지개가 떳어요.", "무기개가 떴어요."] },
+      { text: "하늘이 파래요.", wrong: ["하늘이 파러요.", "하는이 파래요."] }
+    ]
+  },
+  {
+    id: 7,
+    name: "이어쓰기 문장",
+    items: [
+      { text: "강아지가 짖어요.", wrong: ["강아지가 지거요.", "강아지가 짓어요."] },
+      { text: "고양이가 야옹해요.", wrong: ["고양이가 야용해요.", "고냥이가 야옹해요."] },
+      { text: "토끼가 뛰어요.", wrong: ["토끼가 뛰여요.", "토기가 뛰어요."] },
+      { text: "새가 노래해요.", wrong: ["새가 노레해요.", "세가 노래해요."] },
+      { text: "물고기가 헤엄쳐요.", wrong: ["물고기가 헤엄처요.", "물고기가 헤엄쳐오."] },
+      { text: "나비가 날아다녀요.", wrong: ["나비가 나라다녀요.", "나비가 날아다려요."] },
+      { text: "벌이 꿀을 모아요.", wrong: ["벌이 굴을 모아요.", "벌이 꿀을 모와요."] },
+      { text: "개미가 일해요.", wrong: ["개미가 이래요.", "개미가 일하요."] },
+      { text: "송아지가 음매해요.", wrong: ["송아지가 음레해요.", "송아지가 음매요."] },
+      { text: "병아리가 삐악해요.", wrong: ["병아리가 삐약해요.", "병아리가 비악해요."] }
+    ]
+  },
+  {
+    id: 8,
+    name: "긴 문장 표현",
+    items: [
+      { text: "나는 학교가 좋아요.", wrong: ["나는 학교가 조아요.", "나는 학교가 좋오요."] },
+      { text: "친구들과 사이좋게 지내요.", wrong: ["친구들과 사이좋게 지내오.", "친구들과 사이조케 지내요."] },
+      { text: "선생님 말씀을 잘 들어요.", wrong: ["선생님 말씀을 잘 드러요.", "선생님 말씀을 잘 들어오."] },
+      { text: "손을 깨끗이 씻어요.", wrong: ["손을 깨끗히 씻어요.", "손을 깨끗이 씻어오."] },
+      { text: "책상을 깨끗이 닦아요.", wrong: ["책상을 깨끗히 닦아요.", "책상을 깨끗이 닦오요."] },
+      { text: "급식을 맛있게 먹어요.", wrong: ["급식을 맛이게 먹어요.", "급식을 맛있게 먹어오."] },
+      { text: "운동장에서 뛰어 놀아요.", wrong: ["운동장에서 뛰어 노라요.", "운동장에서 뛰워 놀아요."] },
+      { text: "하루가 즐거웠어요.", wrong: ["하루가 즐거워요.", "하루가 즐거웠어오."] },
+      { text: "일찍 자고 일찍 일어나요.", wrong: ["일찍 자고 일찍 이러나요.", "일찍 자고 일찍 일어나오."] },
+      { text: "내일도 열심히 해요.", wrong: ["내일도 열심이 해요.", "내일도 열심히 해오."] }
+    ]
+  },
+  {
+    id: 9,
+    name: "받아쓰기 유형",
+    items: [
+      { text: "꽃이 활짝 피었어요.", wrong: ["꼭이 활짝 피었어요.", "꽃이 활짝 피었어오."] },
+      { text: "봄바람이 불어와요.", wrong: ["봄바람이 불어와오.", "봄바람이 부러와요."] },
+      { text: "씨앗을 심었어요.", wrong: ["씨앗을 시멋어요.", "씨앗을 심었어오."] },
+      { text: "새싹이 돋아났어요.", wrong: ["새싹이 도다났어요.", "새싹이 돋아났어오."] },
+      { text: "나무가 자라요.", wrong: ["나무가 자라오.", "나무가 자다요."] },
+      { text: "열매가 열렸어요.", wrong: ["열매가 열렸어오.", "열매가 여렸어요."] },
+      { text: "단풍이 들었어요.", wrong: ["단풍이 들었어오.", "단풍이 드렀어요."] },
+      { text: "낙엽이 떨어져요.", wrong: ["낙엽이 떨어져오.", "낙엽이 떠러져요."] },
+      { text: "눈사람을 만들어요.", wrong: ["눈사람을 만들어오.", "눈사람을 만드러요."] },
+      { text: "썰매를 타요.", wrong: ["썰매를 타오.", "설매를 타요."] }
+    ]
+  },
+  {
+    id: 10,
+    name: "종합 받아쓰기",
+    items: [
+      { text: "우리 반이 하나가 되어요.", wrong: ["우리 반이 하나가 되어오.", "우리 반이 하나가 도여요."] },
+      { text: "모두 함께 노래해요.", wrong: ["모두 함께 노래해오.", "모두 함게 노래해요."] },
+      { text: "즐거운 학교생활이에요.", wrong: ["즐거운 학교생활이에오.", "즐거운 학교생활이어요."] },
+      { text: "사랑하는 가족이에요.", wrong: ["사랑하는 가족이에오.", "사랑하는 가족이예요."] },
+      { text: "행복한 하루예요.", wrong: ["행복한 하루예오.", "행복한 하루이에요."] },
+      { text: "열심히 공부해요.", wrong: ["열심이 공부해요.", "열심히 공부해오."] },
+      { text: "바르게 생활해요.", wrong: ["바르게 생활해오.", "바르케 생활해요."] },
+      { text: "서로 도와가며 살아요.", wrong: ["서로 도와가며 사라요.", "서로 도와가며 살아오."] },
+      { text: "꿈을 향해 나아가요.", wrong: ["꿈을 향해 나아가오.", "꿈을 향해 나아나요."] },
+      { text: "우리는 모두 소중해요.", wrong: ["우리는 모두 소중해오.", "우리는 모두 소듕해요."] }
+    ]
+  }
+];
+
+// State
+let completedLevels = {};
+let currentLevelIndex = 0;
+let currentQuestionIndex = 0;
+let answers = [];
+let correctCount = 0;
+let answered = false;
+
+// Load progress from Firestore
+function loadProgress() {
+  db.collection("apps/app-1-10-10-10-1-10-1-3-10-10-mtlkrf3j/items").onSnapshot(snapshot => {
+    completedLevels = {};
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.type === 'progress') {
+        completedLevels[data.levelId] = { score: data.score, completed: data.completed };
+      }
+    });
+    renderLevelSelect();
+  });
+}
+
+function saveProgress(levelId, score, completed) {
+  const colRef = db.collection("apps/app-1-10-10-10-1-10-1-3-10-10-mtlkrf3j/items");
+  colRef.where('type','==','progress').where('levelId','==',levelId).get().then(snap => {
+    if (snap.empty) {
+      colRef.add({ type: 'progress', levelId, score, completed, updatedAt: new Date() });
+    } else {
+      snap.docs[0].ref.update({ score, completed, updatedAt: new Date() });
+    }
+  });
+}
+
+// Render Level Select
+function renderLevelSelect() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  levels.forEach((level, idx) => {
+    const isCompleted = completedLevels[level.id] && completedLevels[level.id].completed;
+    const isUnlocked = idx === 0 || (completedLevels[levels[idx-1].id] && completedLevels[levels[idx-1].id].completed);
+    const card = document.createElement('div');
+    card.className = 'level-card' + (isCompleted ? ' completed' : '') + (isUnlocked && !isCompleted ? ' active' : '') + (!isUnlocked ? ' locked' : '');
+    let statusLabel = isCompleted ? '완료 ✓' : (isUnlocked ? '도전!' : '🔒 잠금');
+    let statusClass = isCompleted ? 'status-done' : (isUnlocked ? 'status-ready' : 'status-lock');
+    let scoreStr = isCompleted ? ` (${completedLevels[level.id].score}/10)` : '';
+    card.innerHTML = `
+      ${isCompleted ? '<div class="badge-complete">🏆</div>' : ''}
+      <div class="level-num">${level.id}급</div>
+      <div class="level-name">${level.name}</div>
+      <div class="level-status ${statusClass}">${statusLabel}${scoreStr}</div>
+    `;
+    if (isUnlocked) {
+      card.onclick = () => startLevel(idx);
+    }
+    grid.appendChild(card);
+  });
+}
+
+// Start Level
+function startLevel(levelIdx) {
+  currentLevelIndex = levelIdx;
+  currentQuestionIndex = 0;
+  answers = [];
+  correctCount = 0;
+  answered = false;
+
+  document.getElementById('levelSelect').style.display = 'none';
+  document.getElementById('completeScreen').style.display = 'none';
+  document.getElementById('quizScreen').style.display = 'block';
+
+  const level = levels[currentLevelIndex];
+  document.getElementById('quizTitle').textContent = `${level.id}급 - ${level.name}`;
+  renderNumButtons();
+  renderQuestion();
+}
+
+function renderNumButtons() {
+  const level = levels[currentLevelIndex];
+  const container = document.getElementById('numButtons');
+  container.innerHTML = '';
+  level.items.forEach((item, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'num-btn ' + getNumBtnClass(idx);
+    btn.textContent = idx + 1;
+    btn.id = `numBtn${idx}`;
+    btn.onclick = () => {
+      if (idx <= currentQuestionIndex) {
+        currentQuestionIndex = idx;
+        answered = answers[idx] !== undefined;
+        renderQuestion();
+      }
+    };
+    container.appendChild(btn);
+  });
+}
+
+function getNumBtnClass(idx) {
+  if (answers[idx] !== undefined) {
+    return answers[idx] ? 'done-correct' : 'done-wrong';
+  }
+  if (idx === currentQuestionIndex) return 'current';
+  return 'pending';
+}
+
+function updateNumButtons() {
+  const level = levels[currentLevelIndex];
+  level.items.forEach((_, idx) => {
+    const btn = document.getElementById(`numBtn${idx}`);
+    if (btn) btn.className = 'num-btn ' + getNumBtnClass(idx);
+  });
+}
+
+// Render Question
+function renderQuestion() {
+  const level = levels[currentLevelIndex];
+  const item = level.items[currentQuestionIndex];
+  const total = level.items.length;
+  const current = currentQuestionIndex + 1;
+
+  document.getElementById('progressText').textContent = `${current} / ${total}`;
+  document.getElementById('progressBar').style.width = `${(current / total) * 100}%`;
+
+  // Question text with highlight
+  const qt = document.getElementById('questionText');
+  qt.innerHTML = `<span style="color:#1a6e8e;">${item.text}</span>`;
+
+  // Reset feedback
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback';
+  fb.textContent = '';
+
+  document.getElementById('nextBtn').style.display = 'none';
+
+  // Choices
+  const choices = shuffle([item.text, ...item.wrong]);
+  const container = document.getElementById('choicesContainer');
+  container.innerHTML = '';
+  choices.forEach(choice => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = choice;
+    if (answered) {
+      btn.disabled = true;
+      if (choice === item.text) btn.classList.add('correct');
+      else if (answers[currentQuestionIndex] === false && choice === lastWrongChoice) btn.classList.add('wrong');
+    }
+    btn.onclick = () => selectChoice(choice, item.text, btn, choices, item);
+    container.appendChild(btn);
+  });
+
+  updateNumButtons();
+  // Auto speak
+  if (!answered) {
+    setTimeout(() => speakText(item.text), 400);
+  }
+}
+
+let lastWrongChoice = '';
+
+function selectChoice(choice, correct, btn, choices, item) {
+  if (answered) return;
+  answered = true;
+  const isCorrect = choice === correct;
+  answers[currentQuestionIndex] = isCorrect;
+  if (isCorrect) correctCount++;
+  else lastWrongChoice = choice;
+
+  const fb = document.getElementById('feedback');
+  const allBtns = document.querySelectorAll('.choice-btn');
+  allBtns.forEach(b => {
+    b.disabled = true;
+    if (b.textContent === correct) b.classList.add('correct');
+    else if (!isCorrect && b.textContent === choice) b.classList.add('wrong');
+  });
+
+  if (isCorrect) {
+    fb.className = 'feedback correct';
+    fb.textContent = '🎉 정답이에요! 잘 했어요!';
+    speakText('정답입니다! 참 잘했어요!');
+  } else {
+    fb.className = 'feedback wrong';
+    fb.textContent = `❌ 틀렸어요! 정답은 "${correct}" 이에요.`;
+    speakText(`틀렸어요. 정답은 ${correct} 입니다.`);
+  }
+
+  document.getElementById('nextBtn').style.display = 'block';
+  if (currentQuestionIndex === levels[currentLevelIndex].items.length - 1) {
+    document.getElementById('nextBtn').textContent = '결과 보기 🏆';
+  } else {
+    document.getElementById('nextBtn').textContent = '다음 문제 →';
+  }
+  updateNumButtons();
+}
+
+function nextQuestion() {
+  const level = levels[currentLevelIndex];
+  if (currentQuestionIndex < level.items.length - 1) {
+    currentQuestionIndex++;
+    answered = answers[currentQuestionIndex] !== undefined;
+    renderQuestion();
+  } else {
+    showComplete();
+  }
+}
+
+function showComplete() {
+  const level = levels[currentLevelIndex];
+  const score = answers.filter(a => a === true).length;
+  const total = level.items.length;
+
+  // Save
+  saveProgress(level.id, score, true);
+
+  document.getElementById('quizScreen').style.display = 'none';
+  document.getElementById('completeScreen').style.display = 'block';
+
+  let emoji, title, sub;
+  const pct = score / total;
+  if (pct === 1) { emoji = '🏆'; title = '완벽해요!'; sub = '모두 맞혔어요! 최고예요! 🌟'; }
+  else if (pct >= 0.7) { emoji = '🎉'; title = '잘 했어요!'; sub = '조금 더 연습하면 완벽해질 거예요!'; }
+  else { emoji = '💪'; title = '다시 해봐요!'; sub = '연습이 필요해요. 다시 도전해 봐요!'; }
+
+  let stars = '';
+  if (pct === 1) stars = '⭐⭐⭐';
+  else if (pct >= 0.7) stars = '⭐⭐';
+  else stars = '⭐';
+
+  document.getElementById('completeEmoji').textContent = emoji;
+  document.getElementById('completeTitle').textContent = `${level.id}급 ${title}`;
+  document.getElementById('completeStars').textContent = stars;
+  document.getElementById('scoreDisplay').textContent = `${score} / ${total}`;
+  document.getElementById('completeSub').textContent = sub;
+
+  const nextLevelBtn = document.getElementById('nextLevelBtn');
+  if (currentLevelIndex < levels.length - 1) {
+    nextLevelBtn.style.display = 'inline-block';
+    nextLevelBtn.textContent = `${levels[currentLevelIndex+1].id}급 도전 →`;
+  } else {
+    nextLevelBtn.style.display = 'none';
+  }
+
+  speakText(sub);
+}
+
+function retryLevel() {
+  startLevel(currentLevelIndex);
+}
+
+function goNextLevel() {
+  if (currentLevelIndex < levels.length - 1) {
+    startLevel(currentLevelIndex + 1);
+  }
+}
+
+function goBack() {
+  document.getElementById('quizScreen').style.display = 'none';
+  document.getElementById('completeScreen').style.display = 'none';
+  document.getElementById('levelSelect').style.display = 'block';
+  window.speechSynthesis.cancel();
+}
+
+// TTS
+function speakText(text) {
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'ko-KR';
+  utter.rate = 0.85;
+  utter.pitch = 1.1;
+  window.speechSynthesis.speak(utter);
+}
+
+function speakCurrent() {
+  const level = levels[currentLevelIndex];
+  const item = level.items[currentQuestionIndex];
+  speakText(item.text);
+}
+
+// Utils
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Init
+loadProgress();
+</script>
+</body>
+</html>
