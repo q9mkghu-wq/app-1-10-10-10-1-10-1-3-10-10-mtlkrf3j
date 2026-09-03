@@ -387,7 +387,7 @@ const levels = [
     items: [
       { text: "신나요.", wrong: ["신니요.", "신나요!"] },
       { text: "뿌듯해요.", wrong: ["뿌듣해요.", "뿌듯헤요."] },
-      { text: "동실동실", wrong: ["둥실둥실", "동실둥실"] },
+      { text: "둥실둥실", wrong: ["동실동실", "동실둥실"] },
       { text: "활짝 피었습니다.", wrong: ["활짝 피였습니다.", "활짝 피었습니가."] },
       { text: "얼음처럼 꽁꽁!", wrong: ["어름처럼 꽁꽁!", "얼음처럼 콩꽁!"] },
       { text: "내 마음이 반짝반짝", wrong: ["내 마음이 반짝반쨕", "내 마음이 반작반작"] },
@@ -665,9 +665,13 @@ function renderQuestion() {
   document.getElementById('progressText').textContent = `${current} / ${total}`;
   document.getElementById('progressBar').style.width = `${(current / total) * 100}%`;
 
-  // Question text with highlight
+  // Question text: 풀기 전에는 정답을 가리고, 답을 고른 뒤에만 보여줘요
   const qt = document.getElementById('questionText');
-  qt.innerHTML = `<span style="color:#1a6e8e;">${item.text}</span>`;
+  if (answered) {
+    qt.innerHTML = `<span style="color:#1a6e8e;">${item.text}</span>`;
+  } else {
+    qt.innerHTML = `<span style="color:#b0b0b0; font-size:1rem;">🔊 소리를 잘 듣고<br>맞는 것을 골라보세요</span>`;
+  }
 
   // Reset feedback
   const fb = document.getElementById('feedback');
@@ -709,6 +713,9 @@ function selectChoice(choice, correct, btn, choices, item) {
   answers[currentQuestionIndex] = isCorrect;
   if (isCorrect) correctCount++;
   else lastWrongChoice = choice;
+
+  // 답을 고른 뒤에는 가려뒀던 정답 문장을 보여줘요
+  document.getElementById('questionText').innerHTML = `<span style="color:#1a6e8e;">${correct}</span>`;
 
   const fb = document.getElementById('feedback');
   const allBtns = document.querySelectorAll('.choice-btn');
