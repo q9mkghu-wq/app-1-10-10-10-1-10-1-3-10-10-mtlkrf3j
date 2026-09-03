@@ -582,11 +582,11 @@ function renderLevelSelect() {
   grid.innerHTML = '';
   levels.forEach((level, idx) => {
     const isCompleted = completedLevels[level.id] && completedLevels[level.id].completed;
-    const isUnlocked = idx === 0 || (completedLevels[levels[idx-1].id] && completedLevels[levels[idx-1].id].completed);
+    const isUnlocked = true;
     const card = document.createElement('div');
-    card.className = 'level-card' + (isCompleted ? ' completed' : '') + (isUnlocked && !isCompleted ? ' active' : '') + (!isUnlocked ? ' locked' : '');
-    let statusLabel = isCompleted ? '완료 ✓' : (isUnlocked ? '도전!' : '🔒 잠금');
-    let statusClass = isCompleted ? 'status-done' : (isUnlocked ? 'status-ready' : 'status-lock');
+    card.className = 'level-card' + (isCompleted ? ' completed' : '') + (!isCompleted ? ' active' : '');
+    let statusLabel = isCompleted ? '완료 ✓' : '도전!';
+    let statusClass = isCompleted ? 'status-done' : 'status-ready';
     let scoreStr = isCompleted ? ` (${completedLevels[level.id].score}/10)` : '';
     card.innerHTML = `
       ${isCompleted ? '<div class="badge-complete">🏆</div>' : ''}
@@ -594,9 +594,7 @@ function renderLevelSelect() {
       <div class="level-name">${level.name}</div>
       <div class="level-status ${statusClass}">${statusLabel}${scoreStr}</div>
     `;
-    if (isUnlocked) {
-      card.onclick = () => startLevel(idx);
-    }
+    card.onclick = () => startLevel(idx);
     grid.appendChild(card);
   });
 }
