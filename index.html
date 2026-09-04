@@ -948,6 +948,7 @@ function renderNumButtons() {
     btn.id = `numBtn${idx}`;
     btn.onclick = () => {
       if (idx <= currentQuestionIndex) {
+        if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
         currentQuestionIndex = idx;
         answered = answers[idx] !== undefined;
         renderQuestion();
@@ -1023,6 +1024,7 @@ function renderQuestion() {
 }
 
 let lastWrongChoice = '';
+let autoAdvanceTimer = null;
 
 function selectChoice(choice, correct, btn, choices, item) {
   if (answered) return;
@@ -1060,9 +1062,16 @@ function selectChoice(choice, correct, btn, choices, item) {
     document.getElementById('nextBtn').textContent = '다음 문제 →';
   }
   updateNumButtons();
+
+  // 버튼을 안 눌러도 잠시 후 자동으로 다음 문제로 넘어가요
+  if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
+  autoAdvanceTimer = setTimeout(() => {
+    nextQuestion();
+  }, 2200);
 }
 
 function nextQuestion() {
+  if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   const level = levels[currentLevelIndex];
   if (currentQuestionIndex < level.items.length - 1) {
     currentQuestionIndex++;
@@ -1123,6 +1132,7 @@ function goNextLevel() {
 }
 
 function goBack() {
+  if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   document.getElementById('quizScreen').style.display = 'none';
   document.getElementById('completeScreen').style.display = 'none';
   document.getElementById('levelSelect').style.display = 'block';
